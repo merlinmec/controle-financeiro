@@ -10,6 +10,7 @@ public class AccountMapper {
         
         AccountEntity entity = new AccountEntity();
         entity.setId(domain.getId());
+        entity.setUser(UserMapper.toEntity(domain.getUser()));
         entity.setName(domain.getName());
         entity.setType(domain.getType());
         return entity;
@@ -20,6 +21,7 @@ public class AccountMapper {
         
         return Account.builder()
                 .id(entity.getId())
+                .user(UserMapper.toDomain(entity.getUser()))
                 .name(entity.getName())
                 .type(entity.getType())
                 .build();

@@ -4,16 +4,15 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(name = "transactions")
+@Table(name = "bills")
 @Getter
 @Setter
-public class TransactionEntity {
+public class BillEntity {
 
     @Id
     @Column(columnDefinition = "UUID")
@@ -23,15 +22,16 @@ public class TransactionEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private UserEntity user;
 
-    @Column(nullable = false, length = 255)
+    @Column(nullable = false)
     private String description;
 
-    @Column(nullable = false)
-    private LocalDateTime date;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "account_id", nullable = false)
+    private AccountEntity account;
 
-    @OneToMany(mappedBy = "transaction", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<JournalEntryEntity> entries = new ArrayList<>();
+    @OneToMany(mappedBy = "bill", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<InstallmentEntity> installments = new ArrayList<>();
 
-    public TransactionEntity() {
+    public BillEntity() {
     }
 }

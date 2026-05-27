@@ -11,12 +11,18 @@ import java.util.UUID;
 @Builder
 public class Account {
     private final UUID id;
+    private final User user;
     private final String name;
     private final AccountType type;
     
-    public static Account create(String name, AccountType type) {
+    // Constructor without ID for new accounts
+    public static Account create(User user, String name, AccountType type) {
+        if (user == null) {
+            throw new IllegalArgumentException("User cannot be null.");
+        }
         return Account.builder()
                 .id(UUID.randomUUID())
+                .user(user)
                 .name(name)
                 .type(type)
                 .build();

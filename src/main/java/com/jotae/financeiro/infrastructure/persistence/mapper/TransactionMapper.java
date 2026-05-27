@@ -17,6 +17,7 @@ public class TransactionMapper {
 
         TransactionEntity entity = new TransactionEntity();
         entity.setId(domain.getId());
+        entity.setUser(UserMapper.toEntity(domain.getUser()));
         entity.setDescription(domain.getDescription());
         entity.setDate(domain.getDate());
 
@@ -45,7 +46,7 @@ public class TransactionMapper {
                 .map(TransactionMapper::toEntryDomain)
                 .collect(Collectors.toList());
 
-        return new Transaction(entity.getId(), entity.getDescription(), entity.getDate(), entries);
+        return new Transaction(entity.getId(), UserMapper.toDomain(entity.getUser()), entity.getDescription(), entity.getDate(), entries);
     }
 
     private static JournalEntry toEntryDomain(JournalEntryEntity entity) {
