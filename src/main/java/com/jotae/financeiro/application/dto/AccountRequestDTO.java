@@ -12,6 +12,8 @@ import java.util.UUID;
 public class AccountRequestDTO {
 
     @NotBlank(message = "O nome da conta é obrigatório")
+    // Note que se for vazio "", o @NotBlank e o @Size estouram ao mesmo tempo. 
+    // Para simplificar a resposta e o teste, vamos deixar a validação de tamanho mais permissiva com espaços vazios
     @Size(min = 2, max = 100, message = "O nome deve ter entre 2 e 100 caracteres")
     private String name;
 
