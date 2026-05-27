@@ -6,8 +6,10 @@ import com.jotae.financeiro.domain.model.Account;
 import com.jotae.financeiro.domain.model.JournalEntry;
 import com.jotae.financeiro.domain.model.Money;
 import com.jotae.financeiro.domain.model.Transaction;
+import com.jotae.financeiro.domain.model.User;
 import com.jotae.financeiro.domain.repository.AccountRepository;
 import com.jotae.financeiro.domain.repository.TransactionRepository;
+import com.jotae.financeiro.domain.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,10 +25,14 @@ public class CreateTransactionUseCase {
 
     private final TransactionRepository transactionRepository;
     private final AccountRepository accountRepository;
+    private final UserRepository userRepository;
 
     @Transactional
     public TransactionResponseDTO execute(TransactionRequestDTO request) {
         
+        User user = userRepository.findById(request.getUserId())
+                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
+
         Account sourceAccount = accountRepository.findById(request.getSourceAccountId())
                 .orElseThrow(() -> new IllegalArgumentException("Conta de origem não encontrada"));
                 
@@ -36,6 +42,7 @@ public class CreateTransactionUseCase {
         Money moneyAmount = Money.ofBRL(request.getAmount());
 
         Transaction transaction = Transaction.create(
+                user,
                 request.getDescription(),
                 request.getDate(),
                 Arrays.asList(

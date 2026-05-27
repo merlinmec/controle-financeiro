@@ -1,12 +1,7 @@
 package com.jotae.financeiro.infrastructure.config;
 
-import com.jotae.financeiro.domain.model.Account;
-import com.jotae.financeiro.domain.model.AccountType;
-import com.jotae.financeiro.domain.model.JournalEntry;
-import com.jotae.financeiro.domain.model.Money;
-import com.jotae.financeiro.domain.model.Transaction;
-import com.jotae.financeiro.domain.repository.AccountRepository;
-import com.jotae.financeiro.domain.repository.TransactionRepository;
+import com.jotae.financeiro.domain.model.*;
+import com.jotae.financeiro.domain.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -14,36 +9,58 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class DataLoader implements CommandLineRunner {
 
+    private final UserRepository userRepository;
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
+    private final BillRepository billRepository;
+    private final InstallmentRepository installmentRepository;
 
     @Override
     @Transactional
     public void run(String... args) throws Exception {
-        log.info("--- Iniciando Teste da Arquitetura Financeira ---");
+        log.info("--- Verificando base de dados ---");
 
-        Account nubank = Account.create("Nubank Corrente", AccountType.ASSET);
-        Account alimentacao = Account.create("Despesa com Alimentação", AccountType.EXPENSE);
-        Account salario = Account.create("Receita Salário", AccountType.REVENUE);
+        String testEmail = "teste@email.com";
+        Optional<User> existingUser = userRepository.findByEmail(testEmail);
+
+        if (existingUser.isPresent()) {
+            log.info("Usuário de teste já existe (ID: {}). Pulando carga inicial de dados.", existingUser.get().getId());
+            return;
+        }
+
+        log.info("--- Iniciando Teste da Arquitetura Financeira (Carga Inicial) ---");
+
+        User testUser = User.create("Usuário Teste", testEmail, "hashed_password");
+        testUser = userRepository.save(testUser);
+        log.info("Usuário de teste criado com ID: {}", testUser.getId());
+
+        Account nubank = Account.create(testUser, "Nubank Corrente", AccountType.ASSET);
+        Account alimentacao = Account.create(testUser, "Despesa com Alimentação", AccountType.EXPENSE);
+        Account salario = Account.create(testUser, "Receita Salário", AccountType.REVENUE);
+        Account eletronicos = Account.create(testUser, "Despesa com Eletrônicos", AccountType.EXPENSE);
 
         nubank = accountRepository.save(nubank);
         alimentacao = accountRepository.save(alimentacao);
         salario = accountRepository.save(salario);
-        
+        eletronicos = accountRepository.save(eletronicos);
         log.info("Contas criadas com sucesso!");
 
         Money valorSalario = Money.ofBRL(new BigDecimal("5000.00"));
-        
         Transaction transacaoSalario = Transaction.create(
+                testUser,
                 "Recebimento de Salário Mensal",
                 LocalDateTime.now(),
                 Arrays.asList(
@@ -54,32 +71,51 @@ public class DataLoader implements CommandLineRunner {
         transactionRepository.save(transacaoSalario);
         log.info("Transação de Salário registrada!");
 
-        Money valorIfood = Money.ofBRL(new BigDecimal("85.50"));
+        log.info("--- Testando o motor de parcelamento ---");
+        Bill compraNotebook = Bill.builder()
+                .id(java.util.UUID.randomUUID())
+                .user(testUser)
+                .description("Compra Notebook Dell")
+                .account(eletronicos) 
+                .build();
+
+        billRepository.save(compraNotebook);
+
+        Money valorParcela = Money.ofBRL(new BigDecimal("300.00"));
+        List<Installment> parcelas = IntStream.rangeClosed(1, 12)
+                .mapToObj(i -> Installment.createPending(
+                        compraNotebook,
+                        i,
+                        12,
+                        valorParcela,
+                        LocalDate.now().plusMonths(i - 1)
+                ))
+                .collect(Collectors.toList());
         
-        Transaction transacaoIfood = Transaction.create(
-                "Ifood - Lanche",
+        installmentRepository.saveAll(parcelas);
+        log.info("Compra parcelada do Notebook registrada com 12 parcelas de R$ 300,00.");
+
+        // 5. Simulate paying the first installment of the notebook
+        Installment primeiraParcela = parcelas.get(0);
+        log.info("Pagando a primeira parcela do notebook (ID: {})", primeiraParcela.getId());
+
+        Transaction pagamentoParcela = Transaction.create(
+                testUser,
+                "Pagamento da parcela 1/12 do Notebook Dell",
                 LocalDateTime.now(),
                 Arrays.asList(
-                        JournalEntry.debit(alimentacao, valorIfood),
-                        JournalEntry.credit(nubank, valorIfood)
+                        // Debit the expense account
+                        JournalEntry.debit(eletronicos, primeiraParcela.getAmount()),
+                        // Credit the asset account (money leaves the bank)
+                        JournalEntry.credit(nubank, primeiraParcela.getAmount())
                 )
         );
-        transactionRepository.save(transacaoIfood);
-        log.info("Transação do Ifood registrada!");
+        pagamentoParcela = transactionRepository.save(pagamentoParcela);
 
-        log.info("--- Resumo do Banco de Dados ---");
-        List<Transaction> savedTransactions = transactionRepository.findAll();
-        
-        for (Transaction t : savedTransactions) {
-            log.info("Transação: {} em {}", t.getDescription(), t.getDate());
-            for (JournalEntry entry : t.getEntries()) {
-                String tipo = entry.getAmount().getAmount().signum() >= 0 ? "DÉBITO " : "CRÉDITO";
-                log.info("   -> {} de {} na conta '{}'", 
-                        tipo, 
-                        entry.getAmount().getAmount().abs(),
-                        entry.getAccount().getName());
-            }
-        }
+        primeiraParcela.markAsPaid(pagamentoParcela);
+        installmentRepository.save(primeiraParcela);
+        log.info("Primeira parcela paga e vinculada à transação ID: {}", pagamentoParcela.getId());
+
         log.info("--- Fim do Teste ---");
     }
 }
