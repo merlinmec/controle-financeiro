@@ -13,9 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
@@ -43,22 +42,31 @@ public class CreateBillUseCase {
         
         billRepository.save(bill);
 
-        BigDecimal installmentAmount = request.getAmount().divide(
-                new BigDecimal(request.getTotalInstallments()),
-                2, // scale for BRL
-                RoundingMode.HALF_EVEN
+        int totalInstallments = request.getTotalInstallments();
+        BigDecimal totalAmount = request.getAmount();
+
+        BigDecimal baseInstallmentAmount = totalAmount.divide(
+                new BigDecimal(totalInstallments),
+                RoundingMode.DOWN
         );
 
-        List<Installment> installments = IntStream.rangeClosed(1, request.getTotalInstallments())
-                .mapToObj(i -> Installment.createPending(
-                        bill,
-                        i,
-                        request.getTotalInstallments(),
-                        Money.ofBRL(installmentAmount),
-                        request.getFirstDueDate().plusMonths(i - 1)
-                ))
-                .collect(Collectors.toList());
+        BigDecimal sumOfBaseInstallments = baseInstallmentAmount.multiply(new BigDecimal(totalInstallments - 1));
+        BigDecimal lastInstallmentAmount = totalAmount.subtract(sumOfBaseInstallments);
+
+        List<Installment> installments = new ArrayList<>();
         
+        for (int i = 1; i <= totalInstallments; i++) {
+            BigDecimal currentAmount = (i == totalInstallments) ? lastInstallmentAmount : baseInstallmentAmount;
+            
+            installments.add(Installment.createPending(
+                    bill,
+                    i,
+                    totalInstallments,
+                    Money.ofBRL(currentAmount),
+                    request.getFirstDueDate().plusMonths(i - 1)
+            ));
+        }
+
         installmentRepository.saveAll(installments);
 
         return BillResponseDTO.builder()
