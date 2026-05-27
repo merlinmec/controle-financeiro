@@ -15,7 +15,7 @@ public class Installment {
     private final LocalDate dueDate;
     
     private InstallmentStatus status;
-    private Transaction paymentTransaction;
+    private Transaction paymentTransaction; 
 
     public Installment(UUID id, Bill bill, int number, int totalInstallments, Money amount, LocalDate dueDate, InstallmentStatus status, Transaction paymentTransaction) {
         this.id = id;
@@ -41,10 +41,15 @@ public class Installment {
         );
     }
 
-    public void markAsPaid(Transaction transaction) {
+    public void checkIfPayable() {
         if (this.status == InstallmentStatus.PAID) {
             throw new IllegalStateException("This installment is already paid.");
         }
+    }
+
+
+    public void markAsPaid(Transaction transaction) {
+        checkIfPayable();
         if (transaction == null) {
             throw new IllegalArgumentException("A valid payment transaction is required.");
         }
